@@ -44,6 +44,20 @@ function blobToBase64(blob) {
   })
 }
 
+const CHUNK_SIZE = 900000 // 900KB por chunk
+
+function splitBase64(b64) {
+  const chunks = []
+  for (let i = 0; i < b64.length; i += CHUNK_SIZE) {
+    chunks.push(b64.slice(i, i + CHUNK_SIZE))
+  }
+  return chunks
+}
+
+function joinBase64(chunks) {
+  return chunks.join('')
+}
+
 async function avaliarRespostas(apiKey, nome, vaga, respostas) {
   const config = VAGAS[vaga]
   const semTranscricao = respostas.every(r => !r.transcricao || r.transcricao.trim().length < 10)
@@ -266,7 +280,16 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
       for (let i = 0; i < todas.length; i++) {
         try {
           const b64 = await blobToBase64(todas[i].blob)
-          await setDoc(doc(db, config.colecao, docRef.id, "audios", `pergunta-${i}`), { pergunta: i, audioBase64: b64, duracao: todas[i].duracao })
+          const chunks = splitBase64(b64)
+          await setDoc(doc(db, config.colecao, docRef.id, "audios", `pergunta-${i}`), {
+            pergunta: i, duracao: todas[i].duracao, totalChunks: chunks.length,
+            ...(chunks.length === 1 ? { audioBase64: b64 } : {})
+          })
+          if (chunks.length > 1) {
+            for (let c = 0; c < chunks.length; c++) {
+              await setDoc(doc(db, config.colecao, docRef.id, "audios", `pergunta-${i}-chunk-${c}`), { pergunta: i, chunk: c, data: chunks[c] })
+            }
+          }
         } catch (e) {
           errosAudio.push(i + 1)
         }
@@ -422,7 +445,28 @@ function Painel({ onVoltar }) {
     setCarregandoAudio(c.id)
     try {
       const snap = await getDocs(collection(db, c.colecao, c.id, "audios"))
-      const a = {}; snap.docs.forEach(d => { const dt = d.data(); a[dt.pergunta] = dt.audioBase64 })
+      const docs = {}
+      snap.docs.forEach(d => { docs[d.id] = d.data() })
+
+      const a = {}
+      // agrupar por pergunta
+      const perguntas = new Set(Object.values(docs).map(d => d.pergunta).filter(p => p !== undefined))
+      for (const p of perguntas) {
+        const meta = docs[`pergunta-${p}`]
+        if (!meta) continue
+        if (meta.audioBase64) {
+          a[p] = meta.audioBase64
+        } else if (meta.totalChunks > 1) {
+          const parts = []
+          for (let c2 = 0; c2 < meta.totalChunks; c2++) {
+            const chunkDoc = docs[`pergunta-${p}-chunk-${c2}`]
+            if (chunkDoc) parts.push(chunkDoc.data)
+          }
+          if (parts.length === meta.totalChunks) {
+            a[p] = joinBase64(parts)
+          }
+        }
+      }
       setAudiosCarregados(prev => ({ ...prev, [c.id]: a }))
     } catch { setAudiosCarregados(prev => ({ ...prev, [c.id]: {} })) }
     setCarregandoAudio(null)
@@ -546,7 +590,7 @@ export default function App() {
   return (
     <div style={{ position: "relative" }}>
       <TelaCandidato apiKey={apiKey} vagaId="csm-senior" onFinalizar={() => {}} />
-      <button onClick={() => setTela("painel")} style={{ position: "fixed", bottom: "16px", right: "16px", background: "#1e293b", color: "white", border: "none", borderRadius: "8px", padding: "10px 18px", fontSize: "13px", fontWeight: "600", cursor: "pointer", zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,.3)" }}>🔒 Painel G&C</button>
+      {tela !== "painel" && <button onClick={() => setTela("painel")} style={{ position: "fixed", bottom: "16px", right: "16px", background: "#1e293b", color: "white", border: "none", borderRadius: "8px", padding: "10px 18px", fontSize: "13px", fontWeight: "600", cursor: "pointer", zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,.3)" }}>🔒 Painel G&C</button>}
     </div>
   )
 }
