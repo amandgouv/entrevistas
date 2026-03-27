@@ -376,6 +376,9 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
       <span style={S.badge}>Pergunta {pergAtual + 1} de {config.perguntas.length}</span>
       <div style={S.bar}><div style={S.barIn((pergAtual / config.perguntas.length) * 100)} /></div>
       <div style={S.qbox}><p style={{ margin: 0, fontSize: '17px', fontWeight: '600', color: '#1e293b', lineHeight: '1.5' }}>{config.perguntas[pergAtual]}</p></div>
+      <div style={{ background: '#fffbeb', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px', borderLeft: '3px solid #f59e0b' }}>
+        <p style={{ margin: 0, fontSize: '12px', color: '#92400e', lineHeight: '1.6' }}>💡 <strong>Dica:</strong> grave em um local silencioso, fale próximo ao microfone e acompanhe a transcrição aparecendo na tela — se não aparecer nada enquanto fala, pause e verifique se o microfone está ativo.</p>
+      </div>
       {(gravando || temAudio) && (
         <div style={S.timer(danger)}>
           {gravando && <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#dc2626', animation: 'pulse 1s infinite' }} />}
@@ -410,6 +413,9 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
             {isUltima ? 'Revisar respostas →' : 'Próxima →'}
           </button>
         </>)}
+        {temAudio && !gravando && !transcricao && (
+          <p style={{ width: '100%', margin: '8px 0 0', fontSize: '12px', color: '#dc2626', textAlign: 'center' }}>⚠️ Transcrição não capturada — considere regravar em local mais silencioso ou verificar o microfone.</p>
+        )}
       </div>
     </div><style>{`@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.3 } }`}</style></div>
   )
