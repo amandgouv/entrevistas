@@ -46,14 +46,26 @@ function blobToBase64(blob) {
 
 async function avaliarRespostas(apiKey, nome, vaga, respostas) {
   const config = VAGAS[vaga]
+  const semTranscricao = respostas.every(r => !r.transcricao || r.transcricao.trim().length < 10)
+
+  if (semTranscricao) {
+    return {
+      score: null,
+      classificacao: "🎧 Ouvir áudio",
+      pontos_fortes: [],
+      alertas: ["Transcrição automática não capturou as respostas — isso pode acontecer por ruído no ambiente, uso de celular ou microfone com permissão parcial."],
+      resumo: "Não foi possível avaliar automaticamente. Ouça os áudios diretamente no painel para fazer sua avaliação."
+    }
+  }
+
   const prompt = `Você é um recrutador especialista da Curseduca, uma EdTech brasileira em crescimento.
 Avalie as respostas (transcritas de áudio) do candidato "${nome}" para a vaga de ${config.titulo}.
 
-${respostas.map((r, i) => `Pergunta ${i + 1}: ${config.perguntas[i]}\nResposta (transcrição do áudio): ${r.transcricao || '[sem transcrição disponível]'}\n`).join('\n')}
+${respostas.map((r, i) => `Pergunta ${i + 1}: ${config.perguntas[i]}\nResposta (transcrição do áudio): ${r.transcricao && r.transcricao.trim().length > 10 ? r.transcricao : '[transcrição não disponível — avalie pelo áudio]'}\n`).join('\n')}
 
 ${config.criterios}
 
-IMPORTANTE: As respostas foram transcritas automaticamente de áudio, então pode haver pequenos erros de transcrição. Avalie o conteúdo e a qualidade do raciocínio, não a gramática da transcrição.
+IMPORTANTE: As respostas foram transcritas automaticamente de áudio, então pode haver pequenos erros de transcrição. Avalie o conteúdo e a qualidade do raciocínio, não a gramática da transcrição. Se alguma transcrição estiver ausente, ignore essa pergunta na pontuação e indique nos alertas que o áudio deve ser ouvido manualmente.
 
 Responda APENAS em JSON válido:
 {"score":<0-100>,"classificacao":"<✅ Avança | 🟡 Talvez | ❌ Não avança>","pontos_fortes":["..."],"alertas":["..."],"resumo":"<2 frases>"}`
@@ -477,7 +489,7 @@ function Painel({ onVoltar }) {
                 <span style={{ color: '#94a3b8', fontSize: '13px' }}>{x.data}</span>
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                <span style={S.sc(x.avaliacao?.score || 0)}>{x.avaliacao?.score || '?'}/100</span>
+                <span style={S.sc(x.avaliacao?.score ?? 0)}>{x.avaliacao?.score != null ? `${x.avaliacao.score}/100` : '🎧 ouvir'}</span>
                 <span style={{ fontSize: '18px' }}>{x.avaliacao?.classificacao?.split(' ')[0]}</span>
                 <button onClick={(e) => deletar(x, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#dc2626', padding: '4px' }} title="Apagar">🗑</button>
               </div>
@@ -500,9 +512,9 @@ function Painel({ onVoltar }) {
                 {x.respostas?.map((r, j) => (
                   <div key={j} style={{ marginTop: '12px', background: '#f8fafc', borderRadius: '8px', padding: '16px' }}>
                     <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#94a3b8', fontWeight: '600' }}>P{j + 1}: {vc.perguntas[j] || 'Pergunta não disponível'}</p>
-                    {aud[j] && <div style={{ marginBottom: '8px' }}><audio controls src={aud[j]} style={{ width: '100%', height: '36px' }} /></div>}
+                    {aud[j] && <div style={{ marginBottom: '8px' }} onClick={e => e.stopPropagation()}><audio controls src={aud[j]} style={{ width: '100%', height: '36px' }} /></div>}
                     {r.duracao != null && <p style={{ margin: '0 0 6px', fontSize: '12px', color: '#7c3aed' }}>⏱ Duração: {formatarTempo(r.duracao)}</p>}
-                    {r.transcricao && (<details><summary style={{ fontSize: '12px', color: '#64748b', cursor: 'pointer' }}>Ver transcrição</summary><p style={{ margin: '6px 0 0', fontSize: '13px', color: '#1e293b', lineHeight: '1.5' }}>{r.transcricao}</p></details>)}
+                    {r.transcricao && (<details onClick={e => e.stopPropagation()}><summary style={{ fontSize: '12px', color: '#64748b', cursor: 'pointer' }}>Ver transcrição</summary><p style={{ margin: '6px 0 0', fontSize: '13px', color: '#1e293b', lineHeight: '1.5' }}>{r.transcricao}</p></details>)}
                     {r.texto && !r.transcricao && <p style={{ margin: 0, fontSize: '13px', color: '#1e293b', lineHeight: '1.5' }}>{r.texto}</p>}
                   </div>
                 ))}
