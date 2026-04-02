@@ -306,6 +306,8 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
   const [transcricao, setTranscricao] = useState("")
   const [enviando, setEnviando] = useState(false)
   const [concluido, setConcluido] = useState(false)
+  const [feedback, setFeedback] = useState({ nota: 0, conforto: '', comentario: '' })
+  const [feedbackEnviado, setFeedbackEnviado] = useState(false)
   const [revisando, setRevisando] = useState(false)
   const [reviewUrls, setReviewUrls] = useState([])
   const mediaRecRef = useRef(null)
@@ -444,11 +446,69 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
     } catch (err) { alert("Erro ao enviar: " + err.message); setEnviando(false) }
   }
 
-  if (concluido) return (
+  const enviarFeedback = async () => {
+    try {
+      await addDoc(collection(db, 'feedback-entrevistas'), {
+        vaga: vagaId, nota: feedback.nota, conforto: feedback.conforto,
+        comentario: feedback.comentario, data: new Date().toLocaleDateString('pt-BR'), timestamp: new Date()
+      })
+    } catch {}
+    setFeedbackEnviado(true)
+  }
+
+  if (concluido && feedbackEnviado) return (
     <div style={S.page}><div style={{ ...S.box, textAlign: 'center' }}>
       <div style={{ fontSize: '64px', marginBottom: '16px' }}>✅</div>
-      <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>Entrevista concluída!</h2>
+      <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>Tudo certo!</h2>
       <p style={{ color: '#64748b', marginTop: '8px' }}>Obrigado, {nome}! Nossa equipe vai ouvir suas respostas e entrará em contato em breve.</p>
+    </div></div>
+  )
+
+  if (concluido) return (
+    <div style={S.page}><div style={S.box}>
+      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <div style={{ fontSize: '48px', marginBottom: '8px' }}>🎉</div>
+        <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a', margin: '0 0 6px' }}>Entrevista enviada!</h2>
+        <p style={{ color: '#64748b', fontSize: '14px' }}>Antes de fechar, conta pra gente como foi:</p>
+      </div>
+      <div style={{ marginBottom: '20px' }}>
+        <p style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '10px' }}>Como você avalia sua experiência com essa etapa?</p>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+          {[1,2,3,4,5].map(n => (
+            <button key={n} onClick={() => setFeedback(f => ({ ...f, nota: n }))}
+              style={{ width: '44px', height: '44px', borderRadius: '50%', border: `2px solid ${feedback.nota === n ? '#7c3aed' : '#e2e8f0'}`, background: feedback.nota === n ? '#7c3aed' : 'white', color: feedback.nota === n ? 'white' : '#475569', fontSize: '16px', fontWeight: '700', cursor: 'pointer' }}>
+              {n}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', padding: '0 4px' }}>
+          <span style={{ fontSize: '11px', color: '#94a3b8' }}>Péssima</span>
+          <span style={{ fontSize: '11px', color: '#94a3b8' }}>Ótima</span>
+        </div>
+      </div>
+      <div style={{ marginBottom: '20px' }}>
+        <p style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '10px' }}>Como você se sentiu respondendo por áudio?</p>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {['Muito confortável', 'Confortável', 'Neutro', 'Desconfortável'].map(op => (
+            <button key={op} onClick={() => setFeedback(f => ({ ...f, conforto: op }))}
+              style={{ padding: '8px 14px', borderRadius: '99px', border: `2px solid ${feedback.conforto === op ? '#7c3aed' : '#e2e8f0'}`, background: feedback.conforto === op ? '#ede9fe' : 'white', color: feedback.conforto === op ? '#7c3aed' : '#475569', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+              {op}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{ marginBottom: '24px' }}>
+        <p style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '8px' }}>Algum comentário? <span style={{ fontWeight: '400', color: '#94a3b8' }}>(opcional)</span></p>
+        <textarea value={feedback.comentario} onChange={e => setFeedback(f => ({ ...f, comentario: e.target.value }))}
+          placeholder="Pode falar à vontade..."
+          style={{ width: '100%', padding: '12px', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' }} />
+      </div>
+      <button style={{ ...S.btn, opacity: feedback.nota > 0 ? 1 : 0.4 }} onClick={feedback.nota > 0 ? enviarFeedback : undefined}>
+        Enviar feedback e finalizar →
+      </button>
+      <button onClick={enviarFeedback} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '13px', cursor: 'pointer', width: '100%', marginTop: '12px', padding: '4px' }}>
+        Pular
+      </button>
     </div></div>
   )
 
@@ -562,6 +622,7 @@ function Painel({ onVoltar, apiKey }) {
   const [reprovando, setReprovando] = useState(null)
   const [audiosCarregados, setAudiosCarregados] = useState({})
   const [carregandoAudio, setCarregandoAudio] = useState(null)
+  const [ordenacao, setOrdenacao] = useState('data-desc')
 
   const carregarCandidatos = async () => {
     setCarregando(true)
@@ -704,6 +765,15 @@ function Painel({ onVoltar, apiKey }) {
       filtroStatus === "avanca" ? "Avança" : filtroStatus === "talvez" ? "Talvez" : "Não avança"
     ))
   }
+  listaAtiva = [...listaAtiva].sort((a, b) => {
+    if (ordenacao === 'data-desc') return (b.timestamp?.toDate?.() || 0) - (a.timestamp?.toDate?.() || 0)
+    if (ordenacao === 'data-asc')  return (a.timestamp?.toDate?.() || 0) - (b.timestamp?.toDate?.() || 0)
+    if (ordenacao === 'score-desc') return (b.avaliacao?.score ?? -1) - (a.avaliacao?.score ?? -1)
+    if (ordenacao === 'score-asc')  return (a.avaliacao?.score ?? -1) - (b.avaliacao?.score ?? -1)
+    if (ordenacao === 'nome-asc')  return a.nome?.localeCompare(b.nome)
+    if (ordenacao === 'nome-desc') return b.nome?.localeCompare(a.nome)
+    return 0
+  })
 
   return (
     <div style={sP.page}>
@@ -737,14 +807,25 @@ function Painel({ onVoltar, apiKey }) {
           {[['triagem', `📋 Triagem (${emTriagem.length})`], ['aprovados', `✅ Aprovados (${aprovados.length})`], ['reprovados', `❌ Reprovados (${reprovados.length})`]].map(([v, l]) => (
             <button key={v} onClick={() => { setAbaAtiva(v); setExp(null) }} style={{ background: 'none', border: 'none', borderBottom: abaAtiva === v ? '2px solid #7c3aed' : '2px solid transparent', marginBottom: '-2px', padding: '8px 16px', fontSize: '13px', fontWeight: abaAtiva === v ? '700' : '500', color: abaAtiva === v ? '#7c3aed' : '#64748b', cursor: 'pointer' }}>{l}</button>
           ))}
-          {abaAtiva === 'triagem' && (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {abaAtiva === 'triagem' && (<>
               <span style={{ fontSize: '12px', color: '#94a3b8' }}>IA:</span>
               {[["todos", "Todos"], ["avanca", "✅"], ["talvez", "🟡"], ["nao", "❌"]].map(([v, l]) => (
                 <button key={v} onClick={() => setFiltroStatus(v)} style={{ ...sP.filtroBotao(filtroStatus === v), padding: '4px 10px', fontSize: '12px' }}>{l}</button>
               ))}
-            </div>
-          )}
+              <span style={{ color: '#e2e8f0' }}>|</span>
+            </>)}
+            <span style={{ fontSize: '12px', color: '#94a3b8' }}>Ordenar:</span>
+            <select value={ordenacao} onChange={e => setOrdenacao(e.target.value)}
+              style={{ fontSize: '12px', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '4px 8px', color: '#475569', background: 'white', cursor: 'pointer', outline: 'none' }}>
+              <option value="data-desc">Mais recente</option>
+              <option value="data-asc">Mais antigo</option>
+              <option value="score-desc">Maior score</option>
+              <option value="score-asc">Menor score</option>
+              <option value="nome-asc">Nome A-Z</option>
+              <option value="nome-desc">Nome Z-A</option>
+            </select>
+          </div>
         </div>
       )}
 
@@ -872,16 +953,12 @@ function Painel({ onVoltar, apiKey }) {
 // ─── APP ROOT ────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [tela, setTela] = useState("candidato")
   const apiKey = import.meta.env.VITE_ANTHROPIC_KEY || ""
   const vagaId = getVagaFromUrl()
 
-  if (tela === "painel") return <Painel onVoltar={() => setTela("candidato")} apiKey={apiKey} />
+  // Sem parâmetro ?vaga → painel direto
+  if (!vagaId) return <Painel onVoltar={() => {}} apiKey={apiKey} />
 
-  return (
-    <div style={{ position: "relative" }}>
-      {vagaId ? <TelaCandidato apiKey={apiKey} vagaId={vagaId} onFinalizar={() => {}} /> : <TelaLinkInvalido />}
-      <button onClick={() => setTela("painel")} style={{ position: "fixed", bottom: "16px", right: "16px", background: "#1e293b", color: "white", border: "none", borderRadius: "8px", padding: "10px 18px", fontSize: "13px", fontWeight: "600", cursor: "pointer", zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,.3)" }}>🔒 Painel G&C</button>
-    </div>
-  )
+  // Com parâmetro ?vaga → tela do candidato, sem botão de painel
+  return <TelaCandidato apiKey={apiKey} vagaId={vagaId} onFinalizar={() => {}} />
 }
