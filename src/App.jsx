@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { db } from './firebase'
-import { collection, addDoc, getDocs, orderBy, query, doc, deleteDoc, setDoc } from 'firebase/firestore'
+import { collection, addDoc, getDocs, orderBy, query, doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore'
 
 const VAGAS = {
   'csm-senior': {
@@ -17,8 +17,7 @@ const VAGAS = {
 1. Orientação ao resultado de negócio: conecta o uso do produto com métricas reais do cliente (receita, conversão, churn, ROI) — não fala só em adoção, NPS ou satisfação.
 2. Proatividade e detecção de risco: identifica sinais de churn por dados ou comportamento antes do cliente verbalizar — age antes de virar crise.
 3. Expansão consultiva: identifica oportunidades de expansão a partir de gaps reais de resultado — não a partir de metas de upsell ou pressão comercial.
-4. Postura consultiva e desafio com respeito: tem segurança pra dizer que uma estratégia não vai funcionar e conduz essa conversa com dados e alternativa — não concorda pra evitar conflito.
-5. Clareza e síntese: responde de forma direta, objetiva e bem articulada dentro do limite de 5 minutos — quem enrola ou é vago perde pontos.`
+4. Postura consultiva e desafio com respeito: tem segurança pra dizer que uma estratégia não vai funcionar e conduz essa conversa com dados e alternativa — não concorda pra evitar conflito.`
   }
 }
 
@@ -44,7 +43,7 @@ function blobToBase64(blob) {
   })
 }
 
-const CHUNK_SIZE = 900000 // 900KB por chunk
+const CHUNK_SIZE = 900000
 
 function splitBase64(b64) {
   const chunks = []
@@ -80,10 +79,12 @@ ${respostas.map((r, i) => `Pergunta ${i + 1}: ${config.perguntas[i]}\nResposta (
 ${config.criterios}
 
 INSTRUÇÕES IMPORTANTES:
-- As transcrições são geradas automaticamente e podem ter erros de pontuação, palavras trocadas ou frases incompletas. Seja tolerante com esses problemas e foque no conteúdo e raciocínio, não na forma.
-- Se uma transcrição estiver marcada como '[transcrição não capturada]', não penalize o candidato por isso — registre nos alertas que o áudio deve ser ouvido manualmente para essa pergunta.
+- As transcrições são geradas automaticamente a partir de áudio e podem conter erros de pontuação, palavras trocadas, frases incompletas ou falta de paragrafação. Ignore completamente problemas de forma e foco 100% no conteúdo e no raciocínio demonstrado.
+- Respostas longas ou detalhadas NÃO devem ser penalizadas. O candidato está falando, não escrevendo — é natural que o discurso oral seja mais extenso. Só sinalize verbosidade se a resposta for completamente circular, sem nenhum conteúdo relevante após múltiplas tentativas de responder.
+- Se uma transcrição estiver marcada como '[transcrição não capturada]', não penalize o candidato — registre nos alertas que o áudio deve ser ouvido manualmente para essa pergunta.
 - Avalie com base no que foi dito, mesmo que a transcrição seja imperfeita. Uma resposta com boa substância mas transcrição truncada ainda deve receber nota justa.
-- Só classifique como ❌ Não avança se houver evidência clara de inadequação no conteúdo — não por ausência de transcrição.
+- Só classifique como ❌ Não avança se houver evidência clara de inadequação no conteúdo — nunca por ausência de transcrição ou por extensão da resposta.
+- Nos alertas, foque em gaps de conteúdo reais: ausência de métricas, respostas genéricas sem exemplos concretos, foco em processo em vez de resultado, comportamento reativo em vez de proativo.
 
 Responda APENAS em JSON válido:
 {"score":<0-100>,"classificacao":"<✅ Avança | 🟡 Talvez | ❌ Não avança>","pontos_fortes":["..."],"alertas":["..."],"resumo":"<2 frases>"}`
@@ -130,6 +131,8 @@ const S = {
   sc: (n) => ({ display: 'inline-block', background: n >= 70 ? '#dcfce7' : n >= 50 ? '#fef9c3' : '#fee2e2', color: n >= 70 ? '#16a34a' : n >= 50 ? '#ca8a04' : '#dc2626', borderRadius: '99px', padding: '4px 14px', fontSize: '13px', fontWeight: '700' })
 }
 
+// ─── TELA CANDIDATO ──────────────────────────────────────────────────────────
+
 function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
   const config = VAGAS[vagaId]
   const [nome, setNome] = useState("")
@@ -165,7 +168,6 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
   }, [])
 
   useEffect(() => { return () => { pararGravacao() } }, [pararGravacao])
-
   useEffect(() => {
     return () => { reviewUrls.forEach(u => { try { URL.revokeObjectURL(u) } catch {} }) }
   }, [reviewUrls])
@@ -218,16 +220,13 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
     if (!audioBlob) return
     const novas = salvarRespostaAtual(audioBlob, transcricaoRef.current || transcricao, tempoRestante, respostas)
     setRespostas(novas)
-
     if (pergAtual + 1 < config.perguntas.length) {
-      limparEstado()
-      setPergAtual(pergAtual + 1)
+      limparEstado(); setPergAtual(pergAtual + 1)
     } else {
       if (audioUrl) URL.revokeObjectURL(audioUrl)
       setAudioBlob(null); setAudioUrl(null); setTranscricao(""); transcricaoRef.current = ""
       const urls = novas.map(r => URL.createObjectURL(r.blob))
-      setReviewUrls(urls)
-      setRevisando(true)
+      setReviewUrls(urls); setRevisando(true)
     }
   }
 
@@ -241,10 +240,8 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
     if (audioUrl) URL.revokeObjectURL(audioUrl)
     const prev = novas[pergAtual - 1]
     if (prev) {
-      setAudioBlob(prev.blob)
-      setAudioUrl(URL.createObjectURL(prev.blob))
-      setTranscricao(prev.transcricao)
-      transcricaoRef.current = prev.transcricao
+      setAudioBlob(prev.blob); setAudioUrl(URL.createObjectURL(prev.blob))
+      setTranscricao(prev.transcricao); transcricaoRef.current = prev.transcricao
       setTempoRestante(TEMPO_LIMITE - prev.duracao)
     } else {
       setAudioBlob(null); setAudioUrl(null); setTranscricao(""); transcricaoRef.current = ""; setTempoRestante(TEMPO_LIMITE)
@@ -254,14 +251,11 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
 
   const voltarDaRevisao = () => {
     reviewUrls.forEach(u => { try { URL.revokeObjectURL(u) } catch {} })
-    setReviewUrls([])
-    setRevisando(false)
+    setReviewUrls([]); setRevisando(false)
     const ultima = respostas[respostas.length - 1]
     if (ultima) {
-      setAudioBlob(ultima.blob)
-      setAudioUrl(URL.createObjectURL(ultima.blob))
-      setTranscricao(ultima.transcricao)
-      transcricaoRef.current = ultima.transcricao
+      setAudioBlob(ultima.blob); setAudioUrl(URL.createObjectURL(ultima.blob))
+      setTranscricao(ultima.transcricao); transcricaoRef.current = ultima.transcricao
       setTempoRestante(TEMPO_LIMITE - ultima.duracao)
     }
     setPergAtual(config.perguntas.length - 1)
@@ -274,6 +268,7 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
       const aval = await avaliarRespostas(apiKey, nome, vagaId, todas)
       const docRef = await addDoc(collection(db, config.colecao), {
         nome, candidatoId, vaga: vagaId, respostas: resSemAudio, avaliacao: aval,
+        etapa: 'triagem',
         data: new Date().toLocaleDateString("pt-BR"), timestamp: new Date()
       })
       const errosAudio = []
@@ -290,13 +285,9 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
               await setDoc(doc(db, config.colecao, docRef.id, "audios", `pergunta-${i}-chunk-${c}`), { pergunta: i, chunk: c, data: chunks[c] })
             }
           }
-        } catch (e) {
-          errosAudio.push(i + 1)
-        }
+        } catch { errosAudio.push(i + 1) }
       }
-      if (errosAudio.length > 0) {
-        await setDoc(doc(db, config.colecao, docRef.id), { errosAudio }, { merge: true })
-      }
+      if (errosAudio.length > 0) await setDoc(doc(db, config.colecao, docRef.id), { errosAudio }, { merge: true })
       setConcluido(true); onFinalizar()
     } catch (err) { alert("Erro ao enviar: " + err.message); setEnviando(false) }
   }
@@ -421,7 +412,9 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
   )
 }
 
-function Painel({ onVoltar }) {
+// ─── PAINEL ──────────────────────────────────────────────────────────────────
+
+function Painel({ onVoltar, apiKey }) {
   const [senha, setSenha] = useState("")
   const [auth, setAuth] = useState(false)
   const [candidatos, setCandidatos] = useState([])
@@ -429,7 +422,10 @@ function Painel({ onVoltar }) {
   const [audiosCarregados, setAudiosCarregados] = useState({})
   const [carregandoAudio, setCarregandoAudio] = useState(null)
   const [filtroStatus, setFiltroStatus] = useState("todos")
+  const [abaAtiva, setAbaAtiva] = useState("triagem") // 'triagem' | 'aprovados'
   const [carregando, setCarregando] = useState(false)
+  const [reavaliando, setReavaliando] = useState(null)
+  const [passando, setPassando] = useState(null)
 
   const carregarCandidatos = async () => {
     setCarregando(true)
@@ -453,9 +449,7 @@ function Painel({ onVoltar }) {
       const snap = await getDocs(collection(db, c.colecao, c.id, "audios"))
       const docs = {}
       snap.docs.forEach(d => { docs[d.id] = d.data() })
-
       const a = {}
-      // agrupar por pergunta
       const perguntas = new Set(Object.values(docs).map(d => d.pergunta).filter(p => p !== undefined))
       for (const p of perguntas) {
         const meta = docs[`pergunta-${p}`]
@@ -468,14 +462,45 @@ function Painel({ onVoltar }) {
             const chunkDoc = docs[`pergunta-${p}-chunk-${c2}`]
             if (chunkDoc) parts.push(chunkDoc.data)
           }
-          if (parts.length === meta.totalChunks) {
-            a[p] = joinBase64(parts)
-          }
+          if (parts.length === meta.totalChunks) a[p] = joinBase64(parts)
         }
       }
       setAudiosCarregados(prev => ({ ...prev, [c.id]: a }))
     } catch { setAudiosCarregados(prev => ({ ...prev, [c.id]: {} })) }
     setCarregandoAudio(null)
+  }
+
+  const reavaliar = async (c, e) => {
+    e.stopPropagation()
+    if (!c.respostas) return
+    setReavaliando(c.id)
+    try {
+      const novaAval = await avaliarRespostas(apiKey, c.nome, c.vaga || 'csm-senior', c.respostas)
+      await updateDoc(doc(db, c.colecao, c.id), { avaliacao: novaAval })
+      setCandidatos(prev => prev.map(x => x.id === c.id ? { ...x, avaliacao: novaAval } : x))
+    } catch (err) { alert("Erro ao reavaliar: " + err.message) }
+    setReavaliando(null)
+  }
+
+  const passarProximaEtapa = async (c, e) => {
+    e.stopPropagation()
+    if (!confirm(`Passar ${c.nome} para a próxima etapa?`)) return
+    setPassando(c.id)
+    try {
+      await updateDoc(doc(db, c.colecao, c.id), { etapa: 'aprovado', dataAprovacao: new Date().toLocaleDateString("pt-BR") })
+      setCandidatos(prev => prev.map(x => x.id === c.id ? { ...x, etapa: 'aprovado', dataAprovacao: new Date().toLocaleDateString("pt-BR") } : x))
+      setExp(null)
+    } catch (err) { alert("Erro: " + err.message) }
+    setPassando(null)
+  }
+
+  const voltarParaTriagem = async (c, e) => {
+    e.stopPropagation()
+    try {
+      await updateDoc(doc(db, c.colecao, c.id), { etapa: 'triagem' })
+      setCandidatos(prev => prev.map(x => x.id === c.id ? { ...x, etapa: 'triagem' } : x))
+      setExp(null)
+    } catch (err) { alert("Erro: " + err.message) }
   }
 
   useEffect(() => { if (auth) carregarCandidatos() }, [auth])
@@ -498,9 +523,13 @@ function Painel({ onVoltar }) {
     page: { minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui,sans-serif', padding: '32px 20px' },
     card: { background: 'white', borderRadius: '12px', padding: '20px', maxWidth: '900px', margin: '0 auto 16px', boxShadow: '0 1px 3px rgba(0,0,0,.1)', cursor: 'pointer' },
     btn: { background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' },
+    btnVerde: { background: '#16a34a', color: 'white', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
+    btnCinza: { background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
+    btnRoxo: { background: '#ede9fe', color: '#7c3aed', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
     out: { background: 'white', color: '#475569', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 20px', fontSize: '14px', cursor: 'pointer' },
     inp: { width: '100%', padding: '12px 16px', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '16px', boxSizing: 'border-box', outline: 'none', marginBottom: '16px' },
-    vb: { display: 'inline-block', background: '#ede9fe', color: '#7c3aed', borderRadius: '99px', padding: '2px 10px', fontSize: '11px', fontWeight: '600' }
+    vb: { display: 'inline-block', background: '#ede9fe', color: '#7c3aed', borderRadius: '99px', padding: '2px 10px', fontSize: '11px', fontWeight: '600' },
+    abaBotao: (ativa) => ({ background: ativa ? '#7c3aed' : 'white', color: ativa ? 'white' : '#475569', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 20px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' })
   }
 
   if (!auth) return (
@@ -515,38 +544,76 @@ function Painel({ onVoltar }) {
     </div>
   )
 
-  let lista = candidatos
-  if (filtroStatus !== "todos") lista = lista.filter(x => x.avaliacao?.classificacao?.includes(filtroStatus === "avanca" ? "Avança" : filtroStatus === "talvez" ? "Talvez" : "Não avança"))
+  const emTriagem = candidatos.filter(x => !x.etapa || x.etapa === 'triagem')
+  const aprovados = candidatos.filter(x => x.etapa === 'aprovado')
+
+  let listaAtiva = abaAtiva === 'triagem' ? emTriagem : aprovados
+  if (abaAtiva === 'triagem' && filtroStatus !== "todos") {
+    listaAtiva = listaAtiva.filter(x => x.avaliacao?.classificacao?.includes(
+      filtroStatus === "avanca" ? "Avança" : filtroStatus === "talvez" ? "Talvez" : "Não avança"
+    ))
+  }
 
   return (
     <div style={sP.page}>
-      <div style={{ maxWidth: '900px', margin: '0 auto 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+      {/* Header */}
+      <div style={{ maxWidth: '900px', margin: '0 auto 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>Painel G&C — Entrevistas por Áudio</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>{candidatos.length} candidato(s) • CSM Sênior</p>
+          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>{emTriagem.length} em triagem · {aprovados.length} aprovado(s)</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button style={sP.btn} onClick={carregarCandidatos} disabled={carregando}>{carregando ? "Carregando..." : "🔄 Atualizar"}</button>
           <button style={sP.out} onClick={onVoltar}>← Voltar</button>
         </div>
       </div>
-      <div style={{ maxWidth: '900px', margin: '0 auto 24px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '13px', color: '#64748b', alignSelf: 'center', marginRight: '4px' }}>Status:</span>
-        {[["todos", "Todos"], ["avanca", "✅ Avança"], ["talvez", "🟡 Talvez"], ["nao", "❌ Não avança"]].map(([v, l]) => (
-          <button key={v} onClick={() => setFiltroStatus(v)} style={{ ...sP.btn, background: filtroStatus === v ? '#7c3aed' : 'white', color: filtroStatus === v ? 'white' : '#475569', border: '1px solid #e2e8f0', padding: '6px 14px', fontSize: '13px' }}>{l}</button>
-        ))}
+
+      {/* Abas */}
+      <div style={{ maxWidth: '900px', margin: '0 auto 20px', display: 'flex', gap: '8px' }}>
+        <button style={sP.abaBotao(abaAtiva === 'triagem')} onClick={() => { setAbaAtiva('triagem'); setExp(null) }}>
+          📋 Triagem ({emTriagem.length})
+        </button>
+        <button style={sP.abaBotao(abaAtiva === 'aprovados')} onClick={() => { setAbaAtiva('aprovados'); setExp(null) }}>
+          ✅ Aprovados ({aprovados.length})
+        </button>
       </div>
-      {lista.length === 0 && <div style={{ ...sP.card, textAlign: 'center', color: '#64748b', padding: '40px' }}>Nenhum candidato ainda.</div>}
-      {lista.map((x, i) => {
+
+      {/* Filtros — só na aba triagem */}
+      {abaAtiva === 'triagem' && (
+        <div style={{ maxWidth: '900px', margin: '0 auto 20px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', color: '#64748b', marginRight: '4px' }}>IA:</span>
+          {[["todos", "Todos"], ["avanca", "✅ Avança"], ["talvez", "🟡 Talvez"], ["nao", "❌ Não avança"]].map(([v, l]) => (
+            <button key={v} onClick={() => setFiltroStatus(v)} style={{ ...sP.btn, background: filtroStatus === v ? '#7c3aed' : 'white', color: filtroStatus === v ? 'white' : '#475569', border: '1px solid #e2e8f0', padding: '6px 14px', fontSize: '13px' }}>{l}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Lista */}
+      {listaAtiva.length === 0 && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '40px', maxWidth: '900px', margin: '0 auto', textAlign: 'center', color: '#64748b' }}>
+          {abaAtiva === 'aprovados' ? 'Nenhum candidato aprovado ainda.' : 'Nenhum candidato nessa categoria.'}
+        </div>
+      )}
+
+      {listaAtiva.map((x, i) => {
         const vc = VAGAS[x.vaga] || VAGAS['csm-senior']
         const aud = audiosCarregados[x.id] || {}
+        const estaReavaliando = reavaliando === x.id
+        const estaPassando = passando === x.id
+
         return (
           <div key={x.id} style={sP.card} onClick={() => expandir(i, x)}>
+            {/* Linha principal do card */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <strong style={{ fontSize: '16px' }}>{x.nome}</strong>
                 <span style={sP.vb}>CSM Sênior</span>
                 <span style={{ color: '#94a3b8', fontSize: '13px' }}>{x.data}</span>
+                {x.etapa === 'aprovado' && (
+                  <span style={{ background: '#dcfce7', color: '#16a34a', borderRadius: '99px', padding: '2px 10px', fontSize: '11px', fontWeight: '700' }}>
+                    ✅ Aprovado {x.dataAprovacao ? `em ${x.dataAprovacao}` : ''}
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                 <span style={S.sc(x.avaliacao?.score ?? 0)}>{x.avaliacao?.score != null ? `${x.avaliacao.score}/100` : '🎧 ouvir'}</span>
@@ -554,28 +621,75 @@ function Painel({ onVoltar }) {
                 <button onClick={(e) => deletar(x, e)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#dc2626', padding: '4px' }} title="Apagar">🗑</button>
               </div>
             </div>
+
+            {/* Conteúdo expandido */}
             {exp === i && (
               <div style={{ marginTop: '20px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
-                <p style={{ color: '#475569', fontSize: '14px', marginBottom: '16px' }}>{x.avaliacao?.resumo}</p>
+                {/* Botões de ação */}
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
+                  <button
+                    style={{ ...sP.btnRoxo, opacity: estaReavaliando ? 0.6 : 1 }}
+                    onClick={(e) => reavaliar(x, e)}
+                    disabled={estaReavaliando}
+                  >
+                    {estaReavaliando ? '⏳ Reavaliando...' : '🤖 Reavaliar com IA'}
+                  </button>
+
+                  {x.etapa !== 'aprovado' ? (
+                    <button
+                      style={{ ...sP.btnVerde, opacity: estaPassando ? 0.6 : 1 }}
+                      onClick={(e) => passarProximaEtapa(x, e)}
+                      disabled={estaPassando}
+                    >
+                      {estaPassando ? '⏳ Salvando...' : '✅ Passar pra próxima etapa'}
+                    </button>
+                  ) : (
+                    <button style={sP.btnCinza} onClick={(e) => voltarParaTriagem(x, e)}>
+                      ↩ Voltar pra triagem
+                    </button>
+                  )}
+                </div>
+
+                {/* Avaliação IA */}
+                <p style={{ color: '#475569', fontSize: '14px', marginBottom: '12px', fontStyle: 'italic' }}>{x.avaliacao?.resumo}</p>
                 {x.avaliacao?.pontos_fortes?.length > 0 && (
-                  <div style={{ marginBottom: '12px' }}><strong style={{ fontSize: '13px', color: '#16a34a' }}>✅ Pontos fortes</strong>
-                    <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>{x.avaliacao.pontos_fortes.map((p, j) => <li key={j} style={{ fontSize: '13px', color: '#475569' }}>{p}</li>)}</ul>
+                  <div style={{ marginBottom: '12px' }}>
+                    <strong style={{ fontSize: '13px', color: '#16a34a' }}>✅ Pontos fortes</strong>
+                    <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>
+                      {x.avaliacao.pontos_fortes.map((p, j) => <li key={j} style={{ fontSize: '13px', color: '#475569' }}>{p}</li>)}
+                    </ul>
                   </div>
                 )}
                 {x.avaliacao?.alertas?.length > 0 && (
-                  <div style={{ marginBottom: '16px' }}><strong style={{ fontSize: '13px', color: '#dc2626' }}>⚠️ Alertas</strong>
-                    <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>{x.avaliacao.alertas.map((a, j) => <li key={j} style={{ fontSize: '13px', color: '#475569' }}>{a}</li>)}</ul>
+                  <div style={{ marginBottom: '16px' }}>
+                    <strong style={{ fontSize: '13px', color: '#dc2626' }}>⚠️ Alertas</strong>
+                    <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>
+                      {x.avaliacao.alertas.map((a, j) => <li key={j} style={{ fontSize: '13px', color: '#475569' }}>{a}</li>)}
+                    </ul>
                   </div>
                 )}
+
+                {/* Áudios */}
                 <strong style={{ fontSize: '13px', color: '#475569' }}>Respostas</strong>
                 {carregandoAudio === x.id && <p style={{ fontSize: '13px', color: '#7c3aed', marginTop: '8px' }}>Carregando áudios...</p>}
                 {x.respostas?.map((r, j) => (
                   <div key={j} style={{ marginTop: '12px', background: '#f8fafc', borderRadius: '8px', padding: '16px' }}>
                     <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#94a3b8', fontWeight: '600' }}>P{j + 1}: {vc.perguntas[j] || 'Pergunta não disponível'}</p>
-                    {aud[j] ? <div style={{ marginBottom: '8px' }} onClick={e => e.stopPropagation()}><audio controls src={aud[j]} style={{ width: '100%', height: '36px' }} /></div> : x.errosAudio?.includes(j + 1) ? <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#dc2626' }}>⚠️ Áudio não salvo — erro no envio</p> : carregandoAudio !== x.id ? <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#94a3b8' }}>Áudio não disponível</p> : null}
+                    {aud[j]
+                      ? <div style={{ marginBottom: '8px' }} onClick={e => e.stopPropagation()}><audio controls src={aud[j]} style={{ width: '100%', height: '36px' }} /></div>
+                      : x.errosAudio?.includes(j + 1)
+                        ? <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#dc2626' }}>⚠️ Áudio não salvo — erro no envio</p>
+                        : carregandoAudio !== x.id
+                          ? <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#94a3b8' }}>Áudio não disponível</p>
+                          : null
+                    }
                     {r.duracao != null && <p style={{ margin: '0 0 6px', fontSize: '12px', color: '#7c3aed' }}>⏱ Duração: {formatarTempo(r.duracao)}</p>}
-                    {r.transcricao && (<details onClick={e => e.stopPropagation()}><summary style={{ fontSize: '12px', color: '#64748b', cursor: 'pointer' }}>Ver transcrição</summary><p style={{ margin: '6px 0 0', fontSize: '13px', color: '#1e293b', lineHeight: '1.5' }}>{r.transcricao}</p></details>)}
-                    {r.texto && !r.transcricao && <p style={{ margin: 0, fontSize: '13px', color: '#1e293b', lineHeight: '1.5' }}>{r.texto}</p>}
+                    {r.transcricao && (
+                      <details onClick={e => e.stopPropagation()}>
+                        <summary style={{ fontSize: '12px', color: '#64748b', cursor: 'pointer' }}>Ver transcrição</summary>
+                        <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#1e293b', lineHeight: '1.5' }}>{r.transcricao}</p>
+                      </details>
+                    )}
                   </div>
                 ))}
               </div>
@@ -587,16 +701,18 @@ function Painel({ onVoltar }) {
   )
 }
 
+// ─── APP ROOT ────────────────────────────────────────────────────────────────
+
 export default function App() {
   const [tela, setTela] = useState("candidato")
   const apiKey = import.meta.env.VITE_ANTHROPIC_KEY || ""
 
-  if (tela === "painel") return <Painel onVoltar={() => setTela("candidato")} />
+  if (tela === "painel") return <Painel onVoltar={() => setTela("candidato")} apiKey={apiKey} />
 
   return (
     <div style={{ position: "relative" }}>
       <TelaCandidato apiKey={apiKey} vagaId="csm-senior" onFinalizar={() => {}} />
-      {tela !== "painel" && <button onClick={() => setTela("painel")} style={{ position: "fixed", bottom: "16px", right: "16px", background: "#1e293b", color: "white", border: "none", borderRadius: "8px", padding: "10px 18px", fontSize: "13px", fontWeight: "600", cursor: "pointer", zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,.3)" }}>🔒 Painel G&C</button>}
+      <button onClick={() => setTela("painel")} style={{ position: "fixed", bottom: "16px", right: "16px", background: "#1e293b", color: "white", border: "none", borderRadius: "8px", padding: "10px 18px", fontSize: "13px", fontWeight: "600", cursor: "pointer", zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,.3)" }}>🔒 Painel G&C</button>
     </div>
   )
 }
