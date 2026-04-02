@@ -91,16 +91,22 @@ REGRAS DE FORMA (seja tolerante):
 - Respostas longas ou detalhadas são normais em áudio — NÃO penalize extensão. Só registre como alerta se a resposta for completamente circular e vazia após ouvir tudo.
 - Se uma transcrição estiver '[transcrição não capturada]', não penalize — registre que o áudio precisa ser ouvido manualmente.
 
-CALIBRAÇÃO DE SCORE:
-- 80-100: demonstrou todos os critérios com exemplos concretos e métricas. Raro.
-- 65-79: demonstrou a maioria dos critérios com substância, mas faltou profundidade em 1-2 pontos.
-- 50-64: demonstrou alguns critérios mas com respostas genéricas ou sem métricas na maior parte.
-- abaixo de 50: respostas majoritariamente genéricas, sem exemplos reais, ou sem aderência ao perfil sênior B2B.
+CALIBRAÇÃO DE SCORE — use estes exemplos como âncora:
+
+Score 80+: candidato citou cliente real, métrica concreta (ex: "reduzi churn de 18% pra 9% identificando queda de login antes da renovação"), mostrou raciocínio de negócio claro, desafiou com dado. Muito raro.
+
+Score 65-79: candidato deu exemplos reais com resultado percebido ("o cliente renovou e expandiu", "conseguimos reverter a saída"), mesmo sem métrica exata. Demonstrou lógica de detecção ou expansão consultiva com substância. Faltou precisão em 1-2 critérios mas o perfil é claramente sênior.
+
+Score 50-64: candidato tem experiência e deu exemplos, mas ficou no processo ("fiz QBR", "montei plano de sucesso", "conversei com o cliente") sem conectar com resultado real. Ou foi sênior em 2 critérios e operacional nos outros 2.
+
+Score abaixo de 50: respostas sem caso real identificável, perfil claramente operacional/suporte sem visão de negócio, ou não respondeu à pergunta de fato.
+
+IMPORTANTE: a maioria dos candidatos reais cai entre 50 e 72. Reserve abaixo de 50 somente para quem claramente não tem perfil sênior. Reserve acima de 75 somente para quem claramente se destacou com substância real.
 
 CLASSIFICAÇÃO:
 - ✅ Avança: score ≥ 72 E demonstrou pelo menos 3 dos 4 critérios com substância real.
-- 🟡 Talvez: score entre 58-71, ou score ≥ 72 mas com gap importante em critério essencial.
-- ❌ Não avança: score < 58, ou respostas predominantemente genéricas independente do score.
+- 🟡 Talvez: score entre 55-71, ou score ≥ 72 mas com gap importante em critério essencial.
+- ❌ Não avança: score < 55, ou respostas predominantemente genéricas sem nenhum exemplo real.
 
 Responda APENAS em JSON válido:
 {"score":<0-100>,"classificacao":"<✅ Avança | 🟡 Talvez | ❌ Não avança>","pontos_fortes":["..."],"alertas":["..."],"resumo":"<2 frases>"}`
