@@ -132,7 +132,7 @@ CLASSIFICAÇÃO:
     titulo: 'Head de Produto',
     colecao: 'candidatos-head-produto',
     perguntas: [
-      "Descreve uma decisão de produto que você tomou baseada em dados. Qual métrica estava em jogo, o que os dados mostravam e o que você decidiu fazer — mesmo que contrariasse a opinião de alguém?",
+      "Descreva uma decisão de produto que você tomou baseada em dados. Qual métrica estava em jogo, o que os dados mostravam e o que você decidiu fazer — mesmo que contrariasse a opinião de alguém?",
       "Como você garante que o time de produto está trabalhando na coisa certa? Me dá um exemplo concreto de quando você precisou repriorizar algo no meio do caminho e como conduziu isso com o time.",
       "Qual foi o produto mais incompleto com o qual você trabalhou? O que faltava, o que você fez com isso e o que aprendeu sobre construir em ambiente de incerteza?"
     ],
@@ -469,7 +469,8 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
       <div style={{ textAlign: 'center', marginBottom: '24px' }}>
         <div style={{ fontSize: '48px', marginBottom: '8px' }}>🎉</div>
         <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a', margin: '0 0 6px' }}>Entrevista enviada!</h2>
-        <p style={{ color: '#64748b', fontSize: '14px' }}>Antes de fechar, conta pra gente como foi:</p>
+        <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 4px' }}>Antes de fechar, conta pra gente como foi.</p>
+        <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>🔒 Esse feedback é <strong>100% anônimo</strong> — suas respostas não são vinculadas ao seu nome e não afetam o processo seletivo. Seja transparente! 😊</p>
       </div>
       <div style={{ marginBottom: '20px' }}>
         <p style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', marginBottom: '10px' }}>Como você avalia sua experiência com essa etapa?</p>
@@ -557,7 +558,10 @@ function TelaCandidato({ apiKey, vagaId, onFinalizar }) {
       <div style={S.avisoAmarelo}>
         <p style={{ margin: 0, fontSize: '13px', color: '#92400e', lineHeight: '1.6' }}>⚠️ <strong>Sobre a transcrição automática:</strong> o sistema pode não capturar todas as palavras — e tudo bem! O time de G&C vai <strong>ouvir os áudios</strong> diretamente. 🎧</p>
       </div>
-      <p style={{ color: '#475569', marginBottom: '24px', lineHeight: '1.6', fontSize: '14px' }}>Use <strong>Google Chrome</strong> no computador. Certifique-se de estar em um ambiente silencioso.</p>
+      <p style={{ color: '#475569', marginBottom: '16px', lineHeight: '1.6', fontSize: '14px' }}>Use <strong>Google Chrome</strong> no computador. Certifique-se de estar em um ambiente silencioso.</p>
+      <div style={{ background: '#f1f5f9', borderRadius: '10px', padding: '12px 16px', marginBottom: '24px', fontSize: '13px', color: '#64748b', lineHeight: '1.6' }}>
+        💬 Ao final da entrevista, você vai encontrar uma <strong>tela de feedback anônimo</strong> sobre a sua experiência. É rápido e opcional — mas sua opinião nos ajuda muito.
+      </div>
       <input style={S.inp} placeholder="Seu nome completo" value={nome} onChange={e => setNome(e.target.value)} onKeyDown={e => e.key === 'Enter' && nome.trim() && setIniciado(true)} />
       <button style={{ ...S.btn, opacity: nome.trim() ? 1 : .5 }} onClick={() => nome.trim() && setIniciado(true)}>Começar →</button>
     </div></div>
