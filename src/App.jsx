@@ -768,6 +768,25 @@ function Painel({ onVoltar, apiKey }) {
     filtroBotao: (ativo) => ({ background: ativo ? '#7c3aed' : 'white', color: ativo ? 'white' : '#475569', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' })
   }
 
+  // Calculados antes de qualquer return condicional (regra dos hooks)
+  const isNovo = (x) => {
+    if (!ultimoAcesso) return false
+    const ts = x.timestamp?.toDate?.()
+    return ts && ts > ultimoAcesso
+  }
+  const totalNovos = candidatos.filter(isNovo).length
+
+  // Título da aba com contador de novos
+  useEffect(() => {
+    if (!auth) return
+    if (totalNovos > 0) {
+      document.title = `(${totalNovos} novo${totalNovos > 1 ? 's' : ''}) Painel G&C — Entrevistas por Áudio`
+    } else {
+      document.title = 'Painel G&C — Entrevistas por Áudio'
+    }
+    return () => { document.title = 'Entrevistas por Áudio — Curseduca' }
+  }, [totalNovos, auth])
+
   if (!auth) return (
     <div style={{ ...sP.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ background: 'white', borderRadius: '16px', padding: '40px', maxWidth: '400px', width: '100%', boxShadow: '0 10px 30px rgba(0,0,0,.1)' }}>
@@ -791,14 +810,6 @@ function Painel({ onVoltar, apiKey }) {
       filtroStatus === "avanca" ? "Avança" : filtroStatus === "talvez" ? "Talvez" : "Não avança"
     ))
   }
-  // Candidatos novos = chegaram depois do último acesso
-  const isNovo = (x) => {
-    if (!ultimoAcesso) return false
-    const ts = x.timestamp?.toDate?.()
-    return ts && ts > ultimoAcesso
-  }
-  const totalNovos = candidatos.filter(isNovo).length
-
   listaAtiva = [...listaAtiva].sort((a, b) => {
     if (ordenacao === 'data-desc') return (b.timestamp?.toDate?.() || 0) - (a.timestamp?.toDate?.() || 0)
     if (ordenacao === 'data-asc')  return (a.timestamp?.toDate?.() || 0) - (b.timestamp?.toDate?.() || 0)
@@ -808,16 +819,6 @@ function Painel({ onVoltar, apiKey }) {
     if (ordenacao === 'nome-desc') return b.nome?.localeCompare(a.nome)
     return 0
   })
-
-  // Atualizar título da aba
-  useEffect(() => {
-    if (totalNovos > 0) {
-      document.title = `(${totalNovos} novo${totalNovos > 1 ? 's' : ''}) Painel G&C — Entrevistas por Áudio`
-    } else {
-      document.title = 'Painel G&C — Entrevistas por Áudio'
-    }
-    return () => { document.title = 'Entrevistas por Áudio — Curseduca' }
-  }, [totalNovos])
 
   return (
     <div style={sP.page}>
