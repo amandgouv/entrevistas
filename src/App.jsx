@@ -627,6 +627,9 @@ function Painel({ onVoltar, apiKey }) {
   const [audiosCarregados, setAudiosCarregados] = useState({})
   const [carregandoAudio, setCarregandoAudio] = useState(null)
   const [ordenacao, setOrdenacao] = useState('data-desc')
+  const [feedbacks, setFeedbacks] = useState([])
+  const [carregandoFeedbacks, setCarregandoFeedbacks] = useState(false)
+  const [ultimoAcesso, setUltimoAcesso] = useState(null)
 
   const carregarCandidatos = async () => {
     setCarregando(true)
@@ -727,7 +730,26 @@ function Painel({ onVoltar, apiKey }) {
     } catch (e) { alert("Erro: " + e.message) }
   }
 
-  useEffect(() => { if (auth) carregarCandidatos() }, [auth])
+  const carregarFeedbacks = async () => {
+    setCarregandoFeedbacks(true)
+    try {
+      const q = query(collection(db, 'feedback-entrevistas'), orderBy('timestamp', 'desc'))
+      const snap = await getDocs(q)
+      setFeedbacks(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    } catch (e) { console.error(e) }
+    setCarregandoFeedbacks(false)
+  }
+
+  useEffect(() => {
+    if (auth) {
+      // Registrar último acesso e carregar candidatos
+      const chave = 'painel_ultimo_acesso'
+      const anterior = localStorage.getItem(chave)
+      setUltimoAcesso(anterior ? new Date(anterior) : null)
+      localStorage.setItem(chave, new Date().toISOString())
+      carregarCandidatos()
+    }
+  }, [auth])
 
   const expandir = (i, c) => { if (exp === i) { setExp(null) } else { setExp(i); carregarAudios(c) } }
 
@@ -769,6 +791,14 @@ function Painel({ onVoltar, apiKey }) {
       filtroStatus === "avanca" ? "Avança" : filtroStatus === "talvez" ? "Talvez" : "Não avança"
     ))
   }
+  // Candidatos novos = chegaram depois do último acesso
+  const isNovo = (x) => {
+    if (!ultimoAcesso) return false
+    const ts = x.timestamp?.toDate?.()
+    return ts && ts > ultimoAcesso
+  }
+  const totalNovos = candidatos.filter(isNovo).length
+
   listaAtiva = [...listaAtiva].sort((a, b) => {
     if (ordenacao === 'data-desc') return (b.timestamp?.toDate?.() || 0) - (a.timestamp?.toDate?.() || 0)
     if (ordenacao === 'data-asc')  return (a.timestamp?.toDate?.() || 0) - (b.timestamp?.toDate?.() || 0)
@@ -779,11 +809,22 @@ function Painel({ onVoltar, apiKey }) {
     return 0
   })
 
+  // Atualizar título da aba
+  useEffect(() => {
+    if (totalNovos > 0) {
+      document.title = `(${totalNovos} novo${totalNovos > 1 ? 's' : ''}) Painel G&C — Entrevistas por Áudio`
+    } else {
+      document.title = 'Painel G&C — Entrevistas por Áudio'
+    }
+    return () => { document.title = 'Entrevistas por Áudio — Curseduca' }
+  }, [totalNovos])
+
   return (
     <div style={sP.page}>
       {/* Header */}
       <div style={{ maxWidth: '900px', margin: '0 auto 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a' }}>Painel G&C — Entrevistas por Áudio</h1>
+        {totalNovos > 0 && <p style={{ color: '#64748b', fontSize: '13px', marginTop: '4px' }}><span style={{ background: '#dc2626', color: 'white', borderRadius: '99px', padding: '1px 8px', fontSize: '11px', fontWeight: '700', marginRight: '6px' }}>🔴 {totalNovos} novo{totalNovos > 1 ? 's' : ''}</span>desde seu último acesso</p>}
         <div style={{ display: 'flex', gap: '8px' }}>
           <button style={sP.btn} onClick={carregarCandidatos} disabled={carregando}>{carregando ? "Carregando..." : "🔄 Atualizar"}</button>
           <button style={sP.out} onClick={onVoltar}>← Voltar</button>
@@ -797,16 +838,28 @@ function Painel({ onVoltar, apiKey }) {
           ['salesops', 'Sales Ops'],
           ['copywriter-sr', 'Copywriter Sr.'],
           ['head-produto', 'Head de Produto'],
-        ].map(([v, l]) => (
-          <button key={v} onClick={() => { setVagaAtiva(v); setAbaAtiva('triagem'); setExp(null); setFiltroStatus('todos') }}
-            style={{ ...sP.abaBotao(vagaAtiva === v), fontSize: '13px', padding: '7px 16px' }}>{l}</button>
-        ))}
-        <button onClick={() => setAbaAtiva('links')}
-          style={{ ...sP.abaBotao(abaAtiva === 'links'), fontSize: '13px', padding: '7px 16px', marginLeft: 'auto' }}>🔗 Links</button>
+        ].map(([v, l]) => {
+          const novosNaVaga = candidatos.filter(x => x.vaga === v && isNovo(x)).length
+          return (
+            <button key={v} onClick={() => { setVagaAtiva(v); setAbaAtiva('triagem'); setExp(null); setFiltroStatus('todos') }}
+              style={{ ...sP.abaBotao(vagaAtiva === v), fontSize: '13px', padding: '7px 16px', position: 'relative' }}>
+              {l}
+              {novosNaVaga > 0 && (
+                <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#dc2626', color: 'white', borderRadius: '99px', padding: '1px 6px', fontSize: '10px', fontWeight: '700', lineHeight: '1.4' }}>{novosNaVaga}</span>
+              )}
+            </button>
+          )
+        })}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+          <button onClick={() => { setAbaAtiva('feedback'); carregarFeedbacks() }}
+            style={{ ...sP.abaBotao(abaAtiva === 'feedback'), fontSize: '13px', padding: '7px 16px' }}>💬 Feedback</button>
+          <button onClick={() => setAbaAtiva('links')}
+            style={{ ...sP.abaBotao(abaAtiva === 'links'), fontSize: '13px', padding: '7px 16px' }}>🔗 Links</button>
+        </div>
       </div>
 
       {/* Sub-abas da vaga ativa */}
-      {abaAtiva !== 'links' && (
+      {abaAtiva !== 'links' && abaAtiva !== 'feedback' && (
         <div style={{ maxWidth: '900px', margin: '8px auto 16px', display: 'flex', gap: '6px', borderBottom: '2px solid #e2e8f0', paddingBottom: '0' }}>
           {[['triagem', `📋 Triagem (${emTriagem.length})`], ['aprovados', `✅ Aprovados (${aprovados.length})`], ['reprovados', `❌ Reprovados (${reprovados.length})`]].map(([v, l]) => (
             <button key={v} onClick={() => { setAbaAtiva(v); setExp(null) }} style={{ background: 'none', border: 'none', borderBottom: abaAtiva === v ? '2px solid #7c3aed' : '2px solid transparent', marginBottom: '-2px', padding: '8px 16px', fontSize: '13px', fontWeight: abaAtiva === v ? '700' : '500', color: abaAtiva === v ? '#7c3aed' : '#64748b', cursor: 'pointer' }}>{l}</button>
@@ -829,6 +882,34 @@ function Painel({ onVoltar, apiKey }) {
               <option value="nome-asc">Nome A-Z</option>
               <option value="nome-desc">Nome Z-A</option>
             </select>
+          </div>
+        </div>
+      )}
+
+      {/* Tela de feedback */}
+      {abaAtiva === 'feedback' && (
+        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '28px', boxShadow: '0 1px 3px rgba(0,0,0,.1)' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>Feedbacks dos candidatos</h2>
+            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '24px' }}>Respostas anônimas coletadas ao final de cada entrevista.</p>
+            {carregandoFeedbacks && <p style={{ color: '#7c3aed', fontSize: '13px' }}>Carregando...</p>}
+            {!carregandoFeedbacks && feedbacks.length === 0 && (
+              <p style={{ color: '#94a3b8', fontSize: '14px', textAlign: 'center', padding: '24px 0' }}>Nenhum feedback ainda.</p>
+            )}
+            {feedbacks.map((f, i) => (
+              <div key={f.id} style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', marginBottom: '10px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>
+                    {'⭐'.repeat(f.nota)}{'☆'.repeat(5 - (f.nota || 0))} <span style={{ color: '#7c3aed' }}>{f.nota}/5</span>
+                  </span>
+                  {f.conforto && <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: '99px', padding: '2px 10px', fontSize: '12px', fontWeight: '600' }}>{f.conforto}</span>}
+                  <span style={{ fontSize: '12px', color: '#94a3b8', marginLeft: 'auto' }}>
+                    {f.vaga === 'csm-senior' ? 'CSM Sênior' : f.vaga === 'salesops' ? 'Sales Ops' : f.vaga === 'copywriter-sr' ? 'Copywriter Sr.' : f.vaga === 'head-produto' ? 'Head de Produto' : f.vaga} · {f.data}
+                  </span>
+                </div>
+                {f.comentario && <p style={{ margin: 0, fontSize: '13px', color: '#475569', lineHeight: '1.6', fontStyle: 'italic' }}>"{f.comentario}"</p>}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -861,13 +942,13 @@ function Painel({ onVoltar, apiKey }) {
         </div>
       )}
 
-      {abaAtiva !== 'links' && listaAtiva.length === 0 && (
+      {abaAtiva !== 'links' && abaAtiva !== 'feedback' && listaAtiva.length === 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '40px', maxWidth: '900px', margin: '0 auto', textAlign: 'center', color: '#64748b' }}>
           {abaAtiva === 'aprovados' ? 'Nenhum candidato aprovado ainda.' : abaAtiva === 'reprovados' ? 'Nenhum candidato reprovado.' : 'Nenhum candidato nessa categoria.'}
         </div>
       )}
 
-      {abaAtiva !== 'links' && listaAtiva.map((x, i) => {
+      {abaAtiva !== 'links' && abaAtiva !== 'feedback' && listaAtiva.map((x, i) => {
         const vc = VAGAS[x.vaga] || VAGAS['csm-senior']
         const aud = audiosCarregados[x.id] || {}
         const estaReavaliando = reavaliando === x.id
@@ -878,6 +959,9 @@ function Painel({ onVoltar, apiKey }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                 <strong style={{ fontSize: '16px' }}>{x.nome}</strong>
+                {isNovo(x) && (
+                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626', flexShrink: 0 }} title="Novo" />
+                )}
                 <span style={sP.vagaBadge(x.vaga)}>{x.vaga === 'csm-senior' ? 'CSM Sênior' : x.vaga === 'salesops' ? 'Sales Ops' : x.vaga === 'copywriter-sr' ? 'Copywriter Sr.' : 'Head de Produto'}</span>
                 <span style={{ color: '#94a3b8', fontSize: '13px' }}>{x.data}</span>
                 {x.etapa === 'aprovado' && <span style={{ background: '#dcfce7', color: '#16a34a', borderRadius: '99px', padding: '2px 10px', fontSize: '11px', fontWeight: '700' }}>✅ Aprovado {x.dataAprovacao ? `em ${x.dataAprovacao}` : ''}</span>}
