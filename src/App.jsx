@@ -293,8 +293,8 @@ Responda APENAS em JSON válido:
     if (data.error) throw new Error(data.error.message)
     const text = data.content?.[0]?.text || "{}"
     return JSON.parse(text.replace(/```json|```/g, "").trim())
-  } catch {
-    return { score: 50, classificacao: "🟡 Talvez", pontos_fortes: [], alertas: ["Avaliação automática indisponível"], resumo: "Avalie manualmente ouvindo os áudios." }
+  } catch (err) {
+    return { score: null, classificacao: "🎧 Ouvir áudio", pontos_fortes: [], alertas: ["Erro na avaliação automática — " + (err?.message || "tente reavaliar novamente") + ". Ouça os áudios para avaliar manualmente."], resumo: "Avaliação automática falhou. Use o botão Reavaliar ou ouça os áudios diretamente." }
   }
 }
 
