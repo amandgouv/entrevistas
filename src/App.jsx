@@ -208,7 +208,7 @@ Score abaixo de 55: experiência SMB/inbound, sem processo estruturado, sem acco
 CLASSIFICAÇÃO:
 - ✅ Avança: score ≥ 70 E processo de prospecção estruturado demonstrado + pelo menos mais 2 critérios com substância.
 - 🟡 Talvez: score entre 58-69, ou score ≥ 70 mas com gap em processo de prospecção ou ABM.
-- ❌ Não avança: score < 58, ou experiência majoritariamente SMB/inbound, ou ausência total de processo estruturado.``
+- ❌ Não avança: score < 58, ou experiência majoritariamente SMB/inbound, ou ausência total de processo estruturado.`
   }
 }
 
