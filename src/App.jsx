@@ -835,25 +835,28 @@ function Painel({ onVoltar, apiKey }) {
     if (!lista || lista.length === 0) return
     setAnalisandoFeedbacks(true)
     try {
-      const textos = lista.map((f, i) =>
-        `Feedback ${i + 1} — Vaga: ${f.vaga || 'não informada'} | Nota: ${f.nota}/5 | Conforto: ${f.conforto || 'não informado'}${f.comentario ? ` | Comentário: "${f.comentario}"` : ''}`
-      ).join('
-')
+      const textos = lista.map((f, i) => {
+        const base = 'Feedback ' + (i + 1) + ' - Vaga: ' + (f.vaga || 'nao informada') + ' | Nota: ' + f.nota + '/5 | Conforto: ' + (f.conforto || 'nao informado')
+        return f.comentario ? base + ' | Comentario: ' + f.comentario : base
+      }).join('\n')
 
-      const prompt = `Você está analisando feedbacks anônimos de candidatos sobre uma ferramenta de entrevista por áudio usada num processo seletivo.
-
-Feedbacks recebidos:
-${textos}
-
-Agrupe e sintetize em 3 seções:
-1. Pontos positivos: o que os candidatos elogiaram ou consideraram fácil/bom
-2. Pontos negativos: o que incomodou, dificultou ou foi criticado
-3. Sugestões: melhorias mencionadas ou implícitas nos comentários
-
-Seja direto e objetivo. Não repita os feedbacks — sintetize os padrões.
-
-Responda APENAS em JSON válido:
-{"positivos":["..."],"negativos":["..."],"sugestoes":["..."],"total":${lista.length},"nota_media":"${(lista.reduce((s, f) => s + (f.nota || 0), 0) / lista.length).toFixed(1)}"}`
+      const partes = [
+        'Voce esta analisando feedbacks anonimos de candidatos sobre uma ferramenta de entrevista por audio.',
+        '',
+        'Feedbacks recebidos:',
+        textos,
+        '',
+        'Agrupe e sintetize em 3 secoes:',
+        '1. Pontos positivos: o que os candidatos elogiaram ou consideraram facil/bom',
+        '2. Pontos negativos: o que incomodou, dificultou ou foi criticado',
+        '3. Sugestoes: melhorias mencionadas ou implicitas nos comentarios',
+        '',
+        'Seja direto e objetivo. Nao repita os feedbacks - sintetize os padroes.',
+        '',
+        'Responda APENAS em JSON valido:',
+        '{"positivos":["..."],"negativos":["..."],"sugestoes":["..."],"total":' + lista.length + ',"nota_media":"' + (lista.reduce((s, f) => s + (f.nota || 0), 0) / lista.length).toFixed(1) + '"}'
+      ]
+      const prompt = partes.join('\n')
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -867,7 +870,7 @@ Responda APENAS em JSON válido:
     setAnalisandoFeedbacks(false)
   }
 
-  const fecharVaga = (vagaId) => {
+    const fecharVaga = (vagaId) => {
     const novas = [...vagasFechadas, vagaId]
     setVagasFechadas(novas)
     localStorage.setItem('vagas_fechadas', JSON.stringify(novas))
